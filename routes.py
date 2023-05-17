@@ -31,10 +31,11 @@ def chat_completions_route():
 
     data = request.get_json()
 
-    model = data.get("model")
-    messages = data.get("messages")
-    temperature = data.get("temperature", 0.6)
-    max_tokens = data.get("max_tokens", 100)
+    model = data.get("model", "gpt-3.5-turbo")
+    messages = data.get("messages", [])
+    temperature = data.get("temperature", 0.7)
+    presence_penalty = data.get("presence_penalty", 0)
+    frequency_penalty = data.get("frequency_penalty", 0)
 
     if not (model and messages):
         return jsonify({"error": "model and messages must be provided"}), 400
@@ -44,7 +45,8 @@ def chat_completions_route():
             model=model,
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
         )
         return jsonify(response)
     except Exception as e:
