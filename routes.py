@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+import os
 import openai
 from utils import parse_excel
 
@@ -26,6 +27,20 @@ def parse_excel_route():
 
 @main_routes.route('/chat_completions', methods=['POST'])
 def chat_completions_route():
+    # Get the Authorization header value
+    auth_header = request.headers.get("Authorization")
+
+    # Check if the header value exists
+    if not auth_header:
+        return jsonify({"error": "Authorization header is required"}), 401
+
+    # Extract the token by splitting the header value by whitespace (assuming "Bearer" scheme)
+    auth_token = auth_header.split(" ")[1]
+
+    is_auth_token_valid = auth_token == os.environ.get("ACCESS_CODE")
+    if not is_auth_token_valid:
+        return jsonify({"error": "Authorization is not valid"}), 403
+
     if not request.is_json:
         return jsonify({"error": "JSON data expected"}), 400
 
