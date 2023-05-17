@@ -1,8 +1,10 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import pandas as pd
 import json
 
 app = Flask(__name__)
+CORS(app) # 允许跨域访问
 
 def parse_excel(file):
     # 读取 Excel 文件
