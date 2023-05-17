@@ -1,5 +1,9 @@
 from flask import Flask
 from flask_cors import CORS
+import os
+import openai
+
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 def create_app():
     app = Flask(__name__)
