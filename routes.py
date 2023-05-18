@@ -1,7 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 import os
 import openai
-from utils import parse_excel
+from utils import parse_excel, generate_excel
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -66,3 +66,12 @@ def chat_completions_route():
         return jsonify(response)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@main_routes.route('/generate_excel', methods=['POST'])
+def generate_excel_route():
+    json_data = request.get_json()
+    output = generate_excel(json_data)
+    # 将 xlsx 文件作为响应发送给客户端
+    response = Response(output.read(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response.headers.set('Content-Disposition', 'attachment', filename='output.xlsx')
+    return response
