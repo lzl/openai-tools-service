@@ -1,18 +1,20 @@
-# 使用官方 Python 镜像作为基础镜像
-FROM python:3.9-slim-buster
+# Use the official lightweight Python image.
+# https://hub.docker.com/_/python
+FROM python:3.11-slim
 
-# 将工作目录设置为 /app
+# Allow statements and log messages to immediately appear in the Knative logs
+ENV PYTHONUNBUFFERED True
+
+# Copy local code to the container image.
 WORKDIR /app
+COPY . ./
 
-# 复制当前目录下的所有文件到容器中的 /app 目录
-COPY . .
-
-# 安装项目所需的依赖
+# Install production dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8080
-ENV APP_ENV production
-
-# 在容器启动时运行 web 应用
-# CMD ["gunicorn", "-w", "4", "--bind", "0.0.0.0:8080", "app:app"]
-CMD ["python", "app.py"]
+# Run the web service on container startup. Here we use the gunicorn
+# webserver, with one worker process and 8 threads.
+# For environments with multiple CPU cores, increase the number of workers
+# to be equal to the cores available.
+# Timeout is set to 0 to disable the timeouts of the workers to allow Cloud Run to handle instance scaling.
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
