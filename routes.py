@@ -1,9 +1,19 @@
 from flask import Blueprint, request, jsonify, Response
 import os
 import openai
+import json
+import uuid
+import random
+import time
+from google.cloud import tasks_v2
+from google.cloud import pubsub_v1
+# from google.protobuf.duration_pb2 import Duration
 from utils import parse_excel, generate_excel
 
+publisher = pubsub_v1.PublisherClient()
+
 main_routes = Blueprint('main_routes', __name__)
+
 
 @main_routes.route('/parse_excel', methods=['POST'])
 def parse_excel_route():
@@ -24,6 +34,91 @@ def parse_excel_route():
 
     # 返回 JSON 格式数据
     return jsonify(json_data)
+
+
+@main_routes.route('/ask_all_questions', methods=['POST'])
+def ask_all_questions_route():
+    # data = request.get_json()
+
+    # if not data or 'questions' not in data:
+    #     return jsonify({"error": "Invalid JSON, 'questions' key not found"}), 400
+
+    # questions = data
+    # if not questions:
+    #     return jsonify({"error": "'questions' is empty"}), 400
+
+    # request_id = data.get('request_id', 'default_request_id')
+
+    questions = request.get_json()
+    request_id = uuid.uuid4().hex
+
+    tasks_client = tasks_v2.CloudTasksClient()
+    parent = tasks_client.queue_path(
+        'withcontextai', 'us-west1', 'chat-completions-queue')
+
+    for i, question in enumerate(questions):
+        question_id = question.get("id")
+        question_text = question.get("text")
+
+        payload = json.dumps({
+            "request_id": request_id,
+            "question_id": question_id,
+            "question_text": question_text
+        })
+
+        task = {
+            'app_engine_http_request': {
+                'http_method': 'POST',
+                'relative_uri': '/chat_completions_test',
+                'headers': {
+                    'Content-Type': 'application/json'
+                },
+                'body': payload.encode(),
+            }
+        }
+        # task['app_engine_http_request'].update({
+        #     'body': payload.encode(),
+        # })
+
+        tasks_client.create_task(request={'parent': parent, 'task': task})
+
+    return jsonify({"message": "Tasks created successfully", "request_id": request_id}), 200
+
+
+@main_routes.route('/chat_completions_test', methods=['POST'])
+def chat_completions_test_route():
+    data = request.get_data()
+    if not data:
+        return jsonify({"error": "Invalid request, data not found"}), 400
+
+    data = json.loads(data)
+    request_id = data.get("request_id")
+    question_id = data.get("question_id")
+    question_text = data.get("question_text")
+
+    if not request_id or not question_id or not question_text:
+        return jsonify({"error": "Data missing: request_id, question_id, or question_text"}), 400
+
+    # Simulate a 1-minute waiting time
+    # time.sleep(60)
+    time.sleep(10)
+
+    # Process the question and return a random answer for demonstration purposes
+    answer = f"Answer to question {question_id}: {random.choice(['Yes', 'No', 'Maybe'])}"
+
+    # Format the answer and other metadata as a JSON string
+    message_data = json.dumps({
+        "request_id": request_id,
+        "question_id": question_id,
+        "answer": answer
+    })
+
+    # Publish the message to Pub/Sub with the specified topic_name
+    topic_path = publisher.topic_path('withcontextai', 'chat-completions-sub')
+    publisher.publish(topic_path, data=message_data.encode('utf-8'))
+
+    return jsonify({"message": f"Answer published for question {question_id}"}), 200
+
 
 @main_routes.route('/chat_completions', methods=['POST'])
 def chat_completions_route():
@@ -67,11 +162,14 @@ def chat_completions_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @main_routes.route('/generate_excel', methods=['POST'])
 def generate_excel_route():
     json_data = request.get_json()
     output = generate_excel(json_data)
     # 将 xlsx 文件作为响应发送给客户端
-    response = Response(output.read(), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response.headers.set('Content-Disposition', 'attachment', filename='output.xlsx')
+    response = Response(output.read(
+    ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response.headers.set('Content-Disposition',
+                         'attachment', filename='output.xlsx')
     return response
