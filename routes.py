@@ -70,15 +70,25 @@ def ask_all_questions_route():
         })
 
         task = {
-            'app_engine_http_request': {
+            'http_request': {
                 'http_method': 'POST',
-                'relative_uri': '/chat_completions_test',
+                'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/chat_completions_test',
                 'headers': {
                     'Content-Type': 'application/json'
                 },
                 'body': payload.encode(),
             }
         }
+        # task = {
+        #     'app_engine_http_request': {
+        #         'http_method': 'POST',
+        #         'relative_uri': '/chat_completions_test',
+        #         'headers': {
+        #             'Content-Type': 'application/json'
+        #         },
+        #         'body': payload.encode(),
+        #     }
+        # }
         # task['app_engine_http_request'].update({
         #     'body': payload.encode(),
         # })
