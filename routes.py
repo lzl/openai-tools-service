@@ -199,12 +199,46 @@ def generate_excel_test_route():
     print('json_data:', json_data)
 
     output = generate_excel(json_data)
-    # 将 xlsx 文件作为响应发送给客户端
-    response = Response(output.read(
-    ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response.headers.set('Content-Disposition',
-                         'attachment', filename='output.xlsx')
-    return response
+    # # 将 xlsx 文件作为响应发送给客户端
+    # response = Response(output.read(
+    # ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    # response.headers.set('Content-Disposition',
+    #                      'attachment', filename='output.xlsx')
+    # return response
+
+    # data = request.get_json()
+    # request_id = data.get("request_id")
+    email = global_emails_store[request_id]
+    # excel_data = data.get("excel_data")
+    # output = generate_excel(excel_data)
+
+    # 使用 base64 对 xlsx 文件进行编码
+    data = output.read()
+    encoded_data = base64.b64encode(data).decode()
+
+    # 邮件信息
+    from_email = Email("chenchongyang@withcontext.ai")  # 发件人
+    to_email = Email(email)  # 收件人
+    subject = "Sending Test Email with XLSX Attachment"
+    content = "Hi, please find the attached xlsx file."
+
+    # 创建附件
+    attachment = Attachment()
+    attachment.file_content = FileContent(encoded_data)
+    attachment.file_type = FileType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    attachment.file_name = FileName('output.xlsx')
+    attachment.disposition = Disposition('attachment')
+
+    # 创建邮件
+    mail = Mail(from_email, to_email, subject, content)
+    mail.attachment = attachment
+
+    # 发送邮件
+    api_key = os.getenv('SENDGRID_API_KEY')  # 获取你的 SendGrid API 密钥
+    sg = SendGridAPIClient(api_key)
+    response = sg.send(mail)
+    
+    return {"message": "Email sent successfully"}, 200
 
 
 @main_routes.route('/send_email_test', methods=['POST'])
