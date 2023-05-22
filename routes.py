@@ -53,9 +53,13 @@ def parse_excel_route():
 @main_routes.route('/ask_all_questions', methods=['POST'])
 def ask_all_questions_route():
     data = request.get_json()
+    email = data.get('email', [])
     sheets = data.get('sheets', [])
     questions = data.get('questions', [])
     request_id = uuid.uuid4().hex
+
+    global_emails_store
+    global_emails_store[request_id] = email
 
     global global_sheets_store
     global_sheets_store[request_id] = sheets
@@ -92,19 +96,6 @@ def ask_all_questions_route():
                 'body': payload.encode(),
             }
         }
-        # task = {
-        #     'app_engine_http_request': {
-        #         'http_method': 'POST',
-        #         'relative_uri': '/chat_completions_test',
-        #         'headers': {
-        #             'Content-Type': 'application/json'
-        #         },
-        #         'body': payload.encode(),
-        #     }
-        # }
-        # task['app_engine_http_request'].update({
-        #     'body': payload.encode(),
-        # })
 
         tasks_client.create_task(request={'parent': parent, 'task': task})
 
@@ -186,6 +177,31 @@ def answer_collector_test_route():
 
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
+@main_routes.route('/generate_excel_test', methods=['POST'])
+def generate_excel_test_route():
+    data = request.get_json()
+    request_id = data.get("request_id")
+    sheets = global_sheets_store[request_id]
+    answers = global_answers_store[request_id]
+    print('generate_excel_test')
+    print('sheets:', sheets)
+    print('answers:', answers)
+    # loop sheet with id and row, use id to get answer from answers, insert answer into the row
+    json_data = sheets
+    for sheet in json_data:
+        for answer in answers:
+            if sheet["id"] == answer["id"]:
+                sheet["row"]["answer"] = answer["text"]
+    json_data = [{**item["row"]} for item in json_data]
+    print('json_data:', json_data)
+
+    output = generate_excel(json_data)
+    # 将 xlsx 文件作为响应发送给客户端
+    response = Response(output.read(
+    ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response.headers.set('Content-Disposition',
+                         'attachment', filename='output.xlsx')
+    return response
 
 @main_routes.route('/chat_completions', methods=['POST'])
 def chat_completions_route():
