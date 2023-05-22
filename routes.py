@@ -6,15 +6,10 @@ import uuid
 import random
 import time
 from google.cloud import tasks_v2
-# from google.cloud import pubsub_v1
-# from google.protobuf.duration_pb2 import Duration
 from utils import parse_excel, generate_excel
 
-# publisher = pubsub_v1.PublisherClient()
-
-# global_questions_store = {
-#     "r1": [{"question_id": "q1", "question_text": "t1"}, {"question_id": "q2", "question_text": "t2"}]
-# }
+global_emails_store = {}
+global_sheets_store = {}
 global_questions_store = {}
 global_answers_store = {}
 
@@ -26,6 +21,8 @@ def result_route():
     global global_questions_store
     global global_answers_store
     json_data = {
+        "emails": global_emails_store,
+        "sheets": global_sheets_store,
         "questions": global_questions_store,
         "answers": global_answers_store
     }
@@ -55,30 +52,23 @@ def parse_excel_route():
 
 @main_routes.route('/ask_all_questions', methods=['POST'])
 def ask_all_questions_route():
-    # data = request.get_json()
-
-    # if not data or 'questions' not in data:
-    #     return jsonify({"error": "Invalid JSON, 'questions' key not found"}), 400
-
-    # questions = data
-    # if not questions:
-    #     return jsonify({"error": "'questions' is empty"}), 400
-
-    # request_id = data.get('request_id', 'default_request_id')
-
     data = request.get_json()
+    sheets = data.get('sheets', [])
     questions = data.get('questions', [])
     request_id = uuid.uuid4().hex
+
+    global global_sheets_store
+    global_sheets_store[request_id] = sheets
 
     tasks_client = tasks_v2.CloudTasksClient()
     parent = tasks_client.queue_path(
         'withcontextai', 'us-west1', 'chat-completions-queue')
 
     for i, question in enumerate(questions):
-        # question_id = question.get("id")
-        # question_text = question.get("text")
-        question_id = uuid.uuid4().hex
-        question_text = question
+        question_id = question.get("id")
+        question_text = question.get("text")
+        # question_id = uuid.uuid4().hex
+        # question_text = question
 
         payload = json.dumps({
             "request_id": request_id,
@@ -87,8 +77,6 @@ def ask_all_questions_route():
         })
 
         global global_questions_store
-        # global_questions_store[request_id] = global_questions_store.get(
-        #     request_id, []).append({"question_id": question_id, "question_text": question_text})
         if request_id not in global_questions_store:
             global_questions_store[request_id] = []
         global_questions_store[request_id].append(
@@ -121,8 +109,6 @@ def ask_all_questions_route():
 
         tasks_client.create_task(request={'parent': parent, 'task': task})
 
-    print('/ask_all_questions global_questions_store:', global_questions_store)
-
     return jsonify({"message": "Tasks created successfully", "request_id": request_id}), 200
 
 
@@ -154,7 +140,6 @@ def chat_completions_test_route():
         "question_id": question_id,
         "answer_text": answer
     })
-    print('payload:', payload)
 
     task = {
         'http_request': {
@@ -172,10 +157,6 @@ def chat_completions_test_route():
         'withcontextai', 'us-west1', 'answer-collector-queue')
     tasks_client.create_task(request={'parent': parent, 'task': task})
 
-    # Publish the message to Pub/Sub with the specified topic_name
-    # topic_path = publisher.topic_path('withcontextai', 'chat-completions')
-    # publisher.publish(topic_path, data=message_data.encode('utf-8'))
-
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
 
@@ -191,26 +172,20 @@ def answer_collector_test_route():
     answer_text = data.get("answer_text")
     print('answer_text:', answer_text)
 
-    # global global_questions_store
-    # for question in global_questions_store[request_id]:
-    #     if question["question_id"] == question_id:
-    #         # question_text = question["question_text"]
-    #         # question.update({"answer_text": answer})
-    #         question["answer_text"] = answer_text
-    #         break
-
     global global_answers_store
-    # global_answers_store[request_id] = global_answers_store.get(
-    #     request_id, []).append({"question_id": question_id, "answer_text": answer_text})
     if request_id not in global_answers_store:
         global_answers_store[request_id] = []
     global_answers_store[request_id].append(
         {"question_id": question_id, "answer_text": answer_text})
 
-    print('/answer_collector_test global_answers_store:', global_answers_store)
+    # delete questions from global_questions_store based by request_id and question_id
+    global global_questions_store
+    if request_id in global_questions_store:
+        global_questions_store[request_id] = [
+            question for question in global_questions_store[request_id] if question["id"] != question_id]
 
-    if not request_id or not question_id or not answer_text:
-        return jsonify({"error": "Data missing: request_id, question_id, or answer_text"}), 400
+    # if not request_id or not question_id or not answer_text:
+    #     return jsonify({"error": "Data missing: request_id, question_id, or answer_text"}), 400
 
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
