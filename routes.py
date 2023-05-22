@@ -6,13 +6,29 @@ import uuid
 import random
 import time
 from google.cloud import tasks_v2
-from google.cloud import pubsub_v1
+# from google.cloud import pubsub_v1
 # from google.protobuf.duration_pb2 import Duration
 from utils import parse_excel, generate_excel
 
-publisher = pubsub_v1.PublisherClient()
+# publisher = pubsub_v1.PublisherClient()
+
+# global_questions_store = {
+#     "r1": [{"question_id": "q1", "question_text": "t1"}, {"question_id": "q2", "question_text": "t2"}]
+# }
+global_questions_store = {}
+global_answers_store = {}
 
 main_routes = Blueprint('main_routes', __name__)
+
+@main_routes.route('/result', methods=['GET'])
+def result_route():
+    global global_questions_store
+    global global_answers_store
+    json_data = {
+        "questions": global_questions_store,
+        "answers": global_answers_store
+    }
+    return jsonify(json_data)
 
 
 @main_routes.route('/parse_excel', methods=['POST'])
@@ -69,6 +85,10 @@ def ask_all_questions_route():
             "question_text": question_text
         })
 
+        global global_questions_store
+        global_questions_store[request_id] = global_questions_store.get(
+            request_id, []).append({"question_id": question_id, "question_text": question_text})
+
         task = {
             'http_request': {
                 'http_method': 'POST',
@@ -96,6 +116,8 @@ def ask_all_questions_route():
 
         tasks_client.create_task(request={'parent': parent, 'task': task})
 
+    print('/ask_all_questions global_questions_store:', global_questions_store)
+
     return jsonify({"message": "Tasks created successfully", "request_id": request_id}), 200
 
 
@@ -122,16 +144,64 @@ def chat_completions_test_route():
     answer = f"Answer to question {question_id}: {random.choice(['Yes', 'No', 'Maybe'])}"
 
     # Format the answer and other metadata as a JSON string
-    message_data = json.dumps({
+    payload = json.dumps({
         "request_id": request_id,
         "question_id": question_id,
-        "answer": answer
+        "answer_text": answer
     })
-    print('message_data:', message_data)
+    print('payload:', payload)
+
+    task = {
+        'http_request': {
+            'http_method': 'POST',
+            'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/answer_collector_test',
+            'headers': {
+                'Content-Type': 'application/json'
+            },
+            'body': payload.encode(),
+        }
+    }
+
+    tasks_client = tasks_v2.CloudTasksClient()
+    parent = tasks_client.queue_path(
+        'withcontextai', 'us-west1', 'answer-collector-queue')
+    tasks_client.create_task(request={'parent': parent, 'task': task})
 
     # Publish the message to Pub/Sub with the specified topic_name
-    topic_path = publisher.topic_path('withcontextai', 'chat-completions-sub')
-    publisher.publish(topic_path, data=message_data.encode('utf-8'))
+    # topic_path = publisher.topic_path('withcontextai', 'chat-completions')
+    # publisher.publish(topic_path, data=message_data.encode('utf-8'))
+
+    return jsonify({"message": f"Answer published for question {question_id}"}), 200
+
+
+@main_routes.route('/answer_collector_test', methods=['POST'])
+def answer_collector_test_route():
+    data = request.get_data()
+    if not data:
+        return jsonify({"error": "Invalid request, data not found"}), 400
+
+    data = json.loads(data)
+    request_id = data.get("request_id")
+    question_id = data.get("question_id")
+    answer_text = data.get("answer_text")
+    print('answer_text:', answer_text)
+
+    # global global_questions_store
+    # for question in global_questions_store[request_id]:
+    #     if question["question_id"] == question_id:
+    #         # question_text = question["question_text"]
+    #         # question.update({"answer_text": answer})
+    #         question["answer_text"] = answer_text
+    #         break
+
+    global global_answers_store
+    global_answers_store[request_id] = global_answers_store.get(
+        request_id, []).append({"question_id": question_id, "answer_text": answer_text})
+
+    print('/answer_collector_test global_answers_store:', global_answers_store)
+
+    if not request_id or not question_id or not answer_text:
+        return jsonify({"error": "Data missing: request_id, question_id, or answer_text"}), 400
 
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
