@@ -80,7 +80,7 @@ def ask_all_questions_route():
         if request_id not in global_questions_store:
             global_questions_store[request_id] = []
         global_questions_store[request_id].append(
-            {"question_id": question_id, "question_text": question_text})
+            {"id": question_id, "text": question_text})
 
         task = {
             'http_request': {
@@ -105,7 +105,6 @@ def ask_all_questions_route():
         # task['app_engine_http_request'].update({
         #     'body': payload.encode(),
         # })
-        print('task:', i, task)
 
         tasks_client.create_task(request={'parent': parent, 'task': task})
 
@@ -122,7 +121,6 @@ def chat_completions_test_route():
     request_id = data.get("request_id")
     question_id = data.get("question_id")
     question_text = data.get("question_text")
-    print('question_text:', question_text)
 
     if not request_id or not question_id or not question_text:
         return jsonify({"error": "Data missing: request_id, question_id, or question_text"}), 400
@@ -170,13 +168,12 @@ def answer_collector_test_route():
     request_id = data.get("request_id")
     question_id = data.get("question_id")
     answer_text = data.get("answer_text")
-    print('answer_text:', answer_text)
 
     global global_answers_store
     if request_id not in global_answers_store:
         global_answers_store[request_id] = []
     global_answers_store[request_id].append(
-        {"question_id": question_id, "answer_text": answer_text})
+        {"id": question_id, "text": answer_text})
 
     # delete questions from global_questions_store based by request_id and question_id
     global global_questions_store
