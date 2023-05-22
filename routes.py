@@ -7,7 +7,7 @@ import random
 import time
 from google.cloud import tasks_v2
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition, Email
+from sendgrid.helpers.mail import *
 import base64
 from utils import parse_excel, generate_excel
 
@@ -216,11 +216,12 @@ def generate_excel_test_route():
     data = output.read()
     encoded_data = base64.b64encode(data).decode()
 
+    sg = SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
     # 邮件信息
     from_email = Email("chenchongyang@withcontext.ai")  # 发件人
-    to_email = Email(email)  # 收件人
+    to_email = To(email)  # 收件人
     subject = "Sending Test Email with XLSX Attachment"
-    content = "Hi, please find the attached xlsx file."
+    content = Content("text/plain", "Hi, please find the attached xlsx file.")
 
     # 创建附件
     attachment = Attachment()
@@ -234,10 +235,13 @@ def generate_excel_test_route():
     mail.attachment = attachment
 
     # 发送邮件
-    api_key = os.getenv('SENDGRID_API_KEY')  # 获取你的 SendGrid API 密钥
-    sg = SendGridAPIClient(api_key)
+    # api_key = os.getenv('SENDGRID_API_KEY')  # 获取你的 SendGrid API 密钥
+    # sg = SendGridAPIClient(api_key)
     response = sg.send(mail)
-    
+    print(response.status_code)
+    print(response.body)
+    print(response.headers)
+
     return {"message": "Email sent successfully"}, 200
 
 
