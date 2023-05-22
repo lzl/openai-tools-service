@@ -6,4 +6,4 @@ openai==0.27.6
 gunicorn==20.1.0
 xlsxwriter==3.1.0
 google-cloud-tasks==2.13.1
-google-cloud-pubsub==2.17.0
+sendgrid===6.10.0
