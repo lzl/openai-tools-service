@@ -20,6 +20,7 @@ global_answers_store = {}
 
 main_routes = Blueprint('main_routes', __name__)
 
+
 @main_routes.route('/result', methods=['GET'])
 def result_route():
     global global_questions_store
@@ -86,8 +87,12 @@ def ask_all_questions_route():
         })
 
         global global_questions_store
-        global_questions_store[request_id] = global_questions_store.get(
-            request_id, []).append({"question_id": question_id, "question_text": question_text})
+        # global_questions_store[request_id] = global_questions_store.get(
+        #     request_id, []).append({"question_id": question_id, "question_text": question_text})
+        if request_id not in global_questions_store:
+            global_questions_store[request_id] = []
+        global_questions_store[request_id].append(
+            {"question_id": question_id, "question_text": question_text})
 
         task = {
             'http_request': {
@@ -195,8 +200,12 @@ def answer_collector_test_route():
     #         break
 
     global global_answers_store
-    global_answers_store[request_id] = global_answers_store.get(
-        request_id, []).append({"question_id": question_id, "answer_text": answer_text})
+    # global_answers_store[request_id] = global_answers_store.get(
+    #     request_id, []).append({"question_id": question_id, "answer_text": answer_text})
+    if request_id not in global_answers_store:
+        global_answers_store[request_id] = []
+    global_answers_store[request_id].append(
+        {"question_id": question_id, "answer_text": answer_text})
 
     print('/answer_collector_test global_answers_store:', global_answers_store)
 
