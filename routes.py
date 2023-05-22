@@ -49,7 +49,8 @@ def ask_all_questions_route():
 
     # request_id = data.get('request_id', 'default_request_id')
 
-    questions = request.get_json()
+    data = request.get_json()
+    questions = data.get('questions', [])
     request_id = uuid.uuid4().hex
 
     tasks_client = tasks_v2.CloudTasksClient()
@@ -57,8 +58,10 @@ def ask_all_questions_route():
         'withcontextai', 'us-west1', 'chat-completions-queue')
 
     for i, question in enumerate(questions):
-        question_id = question.get("id")
-        question_text = question.get("text")
+        # question_id = question.get("id")
+        # question_text = question.get("text")
+        question_id = uuid.uuid4().hex
+        question_text = question
 
         payload = json.dumps({
             "request_id": request_id,
@@ -79,6 +82,7 @@ def ask_all_questions_route():
         # task['app_engine_http_request'].update({
         #     'body': payload.encode(),
         # })
+        print('task:', i, task)
 
         tasks_client.create_task(request={'parent': parent, 'task': task})
 
@@ -95,6 +99,7 @@ def chat_completions_test_route():
     request_id = data.get("request_id")
     question_id = data.get("question_id")
     question_text = data.get("question_text")
+    print('question_text:', question_text)
 
     if not request_id or not question_id or not question_text:
         return jsonify({"error": "Data missing: request_id, question_id, or question_text"}), 400
@@ -112,6 +117,7 @@ def chat_completions_test_route():
         "question_id": question_id,
         "answer": answer
     })
+    print('message_data:', message_data)
 
     # Publish the message to Pub/Sub with the specified topic_name
     topic_path = publisher.topic_path('withcontextai', 'chat-completions-sub')
