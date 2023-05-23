@@ -10,26 +10,42 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import *
 import base64
 from utils import parse_excel, generate_excel
+from google.cloud import firestore
 
-global_emails_store = {}
-global_sheets_store = {}
-global_questions_store = {}
-global_answers_store = {}
+db = firestore.Client(project='withcontextai')
+
+# global_emails_store = {}
+# global_sheets_store = {}
+# global_questions_store = {}
+# global_answers_store = {}
 
 main_routes = Blueprint('main_routes', __name__)
 
 
 @main_routes.route('/result', methods=['GET'])
 def result_route():
-    global global_questions_store
-    global global_answers_store
-    json_data = {
-        "emails": global_emails_store,
-        "sheets": global_sheets_store,
-        "questions": global_questions_store,
-        "answers": global_answers_store
-    }
-    return jsonify(json_data)
+    request_id = request.args.get('request_id')  # 获取URL中的请求参数
+    if request_id:
+        data = db.collection('requests').document(
+            request_id).get()  # 使用request_id获取firestore文档
+        json_data = data.to_dict()
+        return jsonify(json_data)
+    else:
+        requests_ref = db.collection('requests')
+        requests_data = []
+        for doc in requests_ref.stream():  # 遍历requests collection中的每个文档
+            requests_data.append(doc.to_dict())
+        return jsonify(requests_data)
+
+    # global global_questions_store
+    # global global_answers_store
+    # json_data = {
+    #     "emails": global_emails_store,
+    #     "sheets": global_sheets_store,
+    #     "questions": global_questions_store,
+    #     "answers": global_answers_store
+    # }
+    # return jsonify(json_data)
 
 
 @main_routes.route('/parse_excel', methods=['POST'])
@@ -61,11 +77,19 @@ def ask_all_questions_route():
     questions = data.get('questions', [])
     request_id = uuid.uuid4().hex
 
-    global_emails_store
-    global_emails_store[request_id] = email
+    request_data = {
+        "email": email,
+        "sheets": sheets,
+        "questions": questions,
+        "answers": []
+    }
+    db.collection('requests').document(request_id).set(request_data)
 
-    global global_sheets_store
-    global_sheets_store[request_id] = sheets
+    # global global_emails_store
+    # global_emails_store[request_id] = email
+
+    # global global_sheets_store
+    # global_sheets_store[request_id] = sheets
 
     tasks_client = tasks_v2.CloudTasksClient()
     parent = tasks_client.queue_path(
@@ -83,11 +107,11 @@ def ask_all_questions_route():
             "question_text": question_text
         })
 
-        global global_questions_store
-        if request_id not in global_questions_store:
-            global_questions_store[request_id] = []
-        global_questions_store[request_id].append(
-            {"id": question_id, "text": question_text})
+        # global global_questions_store
+        # if request_id not in global_questions_store:
+        #     global_questions_store[request_id] = []
+        # global_questions_store[request_id].append(
+        #     {"id": question_id, "text": question_text})
 
         task = {
             'http_request': {
@@ -133,7 +157,7 @@ def chat_completions_async_route():
     if not request.is_json:
         return jsonify({"error": "JSON data expected"}), 400
 
-    data = request.get_json()
+    # data = request.get_json()
 
     model = data.get("model", "gpt-3.5-turbo")
     # messages = data.get("messages", [])
@@ -157,13 +181,13 @@ def chat_completions_async_route():
         # return jsonify(response)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
     answer = response.get("choices", [])[0].get("message", {}).get("content")
 
     # Process the question and return a random answer for demonstration purposes
     # answer_choice = random.choice(['Yes', 'No', 'Maybe'])
     # if answer_choice == "Maybe":
-        # return jsonify({"error": "Cannot answer with Maybe"}), 400
+    # return jsonify({"error": "Cannot answer with Maybe"}), 400
     # answer = f"Answer to question {question_id}: {answer_choice}"
 
     # Format the answer and other metadata as a JSON string
@@ -201,21 +225,35 @@ def answer_collector_route():
     question_id = data.get("question_id")
     answer_text = data.get("answer_text")
 
-    # 添加 answer_text 到全局变量中
-    global global_answers_store
-    if request_id not in global_answers_store:
-        global_answers_store[request_id] = []
-    global_answers_store[request_id].append(
-        {"id": question_id, "text": answer_text})
+    request_data = db.collection('requests').document(
+        request_id).get().to_dict()
 
-    # 删除 global_questions_store 中的对应 question_id 的数据
-    global global_questions_store
-    if request_id in global_questions_store:
-        global_questions_store[request_id] = [
-            question for question in global_questions_store[request_id] if question["id"] != question_id]
+    answers = request_data["answers"]
+    answers.append({"id": question_id, "text": answer_text})
+    db.collection('requests').document(request_id).update({"answers": answers})
+
+    questions = request_data["questions"]
+    questions = [
+        question for question in questions if question["id"] != question_id]
+    db.collection('requests').document(
+        request_id).update({"questions": questions})
+
+    # # 添加 answer_text 到全局变量中
+    # global global_answers_store
+    # if request_id not in global_answers_store:
+    #     global_answers_store[request_id] = []
+    # global_answers_store[request_id].append(
+    #     {"id": question_id, "text": answer_text})
+
+    # # 删除 global_questions_store 中的对应 question_id 的数据
+    # global global_questions_store
+    # if request_id in global_questions_store:
+    #     global_questions_store[request_id] = [
+    #         question for question in global_questions_store[request_id] if question["id"] != question_id]
 
     # 如果问题都回答完了，触发发送邮件任务
-    if request_id in global_questions_store and len(global_questions_store[request_id]) == 0:
+    # if request_id in global_questions_store and len(global_questions_store[request_id]) == 0:
+    if request_data is not None and len(questions) == 0:
         payload = json.dumps({
             "request_id": request_id,
         })
@@ -246,10 +284,14 @@ def send_answers_email_route():
     # 从请求中获取 request_id
     request_id = data.get("request_id")
 
-    # 从全局变量中获取 sheets, answers 和 email
-    sheets = global_sheets_store.get(request_id)
-    answers = global_answers_store.get(request_id)
-    email = global_emails_store.get(request_id)
+    data = db.collection('requests').document(request_id).get().to_dict()
+    sheets = data["sheets"]
+    answers = data["answers"]
+    email = data["email"]
+    # # 从全局变量中获取 sheets, answers 和 email
+    # sheets = global_sheets_store.get(request_id)
+    # answers = global_answers_store.get(request_id)
+    # email = global_emails_store.get(request_id)
 
     # 整合 sheets 和 answers 数据
     for sheet in sheets:
@@ -290,44 +332,6 @@ def send_answers_email_route():
             return {"error": f"Failed to send email, error code: {response.status_code}"}, 400
     except Exception as e:
         return {"error": f"Failed to send email: {e}"}, 400
-
-    return {"message": "Email sent successfully"}, 200
-
-
-@main_routes.route('/send_email_test', methods=['POST'])
-def send_email_test_route():
-    data = request.get_json()
-    request_id = data.get("request_id")
-    email = global_emails_store[request_id]
-    excel_data = data.get("excel_data")
-    output = generate_excel(excel_data)
-
-    # 使用 base64 对 xlsx 文件进行编码
-    data = output.read()
-    encoded_data = base64.b64encode(data).decode()
-
-    # 邮件信息
-    from_email = Email("chenchongyang@withcontext.ai")  # 发件人
-    to_email = Email(email)  # 收件人
-    subject = "Sending Test Email with XLSX Attachment"
-    content = "Hi, please find the attached xlsx file."
-
-    # 创建附件
-    attachment = Attachment()
-    attachment.file_content = FileContent(encoded_data)
-    attachment.file_type = FileType(
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    attachment.file_name = FileName('output.xlsx')
-    attachment.disposition = Disposition('attachment')
-
-    # 创建邮件
-    mail = Mail(from_email, to_email, subject, content)
-    mail.attachment = attachment
-
-    # 发送邮件
-    api_key = os.getenv('SENDGRID_API_KEY')  # 获取你的 SendGrid API 密钥
-    sg = SendGridAPIClient(api_key)
-    response = sg.send(mail)
 
     return {"message": "Email sent successfully"}, 200
 
