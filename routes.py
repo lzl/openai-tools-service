@@ -82,7 +82,8 @@ def ask_all_questions_route():
         "email": email,
         "sheets": sheets,
         "questions": questions,
-        "answers": []
+        "answers": [],
+        "created_at": firestore.SERVER_TIMESTAMP,
     }
     # db.collection('requests').document(request_id).set(request_data)
     created_at, request_ref = db.collection('requests').add(request_data)
@@ -105,7 +106,6 @@ def ask_all_questions_route():
         # question_text = question
 
         payload = json.dumps({
-            "created_at": created_at,
             "request_id": request_id,
             "question_id": question_id,
             "question_text": question_text
