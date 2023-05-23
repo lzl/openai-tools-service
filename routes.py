@@ -124,7 +124,10 @@ def chat_completions_test_route():
     time.sleep(10)
 
     # Process the question and return a random answer for demonstration purposes
-    answer = f"Answer to question {question_id}: {random.choice(['Yes', 'No', 'Maybe'])}"
+    answer_choice = random.choice(['Yes', 'No', 'Maybe'])
+    if answer_choice == "Maybe":
+        return jsonify({"error": "Cannot answer with Maybe"}), 400
+    answer = f"Answer to question {question_id}: {answer_choice}"
 
     # Format the answer and other metadata as a JSON string
     payload = json.dumps({
