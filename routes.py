@@ -26,10 +26,13 @@ main_routes = Blueprint('main_routes', __name__)
 def result_route():
     request_id = request.args.get('request_id')  # 获取URL中的请求参数
     if request_id:
-        data = db.collection('requests').document(
-            request_id).get()  # 使用request_id获取firestore文档
-        json_data = data.to_dict()
-        return jsonify(json_data)
+        requests_data = db.collection('requests').document(
+            request_id).get().to_dict()
+        qna_ref = db.collection('qna').where("request_id", "==", request_id)
+        qna_data = []
+        for doc in qna_ref.stream():  # 遍历requests collection中的每个文档
+            qna_data.append({"id": doc.id, **doc.to_dict()})
+        return jsonify({"requests": requests_data, "qna": qna_data})
     else:
         requests_ref = db.collection('requests').order_by(
             'created_at', direction=firestore.Query.DESCENDING).limit(10)
@@ -84,6 +87,9 @@ def ask_all_questions_route():
         "questions": questions,
         "answers": [],
         "created_at": firestore.SERVER_TIMESTAMP,
+        "questions_count": len(questions),
+        "success_count": 0,
+        "fail_count": 0,
     }
     # db.collection('requests').document(request_id).set(request_data)
     created_at, request_ref = db.collection('requests').add(request_data)
@@ -182,9 +188,19 @@ def chat_completions_async_route():
             presence_penalty=presence_penalty,
             frequency_penalty=frequency_penalty,
         )
+        db.collection('requests').document(request_id).update(
+            {"success_count": firestore.Increment(1)})
         # return jsonify(response)
     except Exception as e:
+        db.collection('requests').document(request_id).update(
+            {"fail_count": firestore.Increment(1)})
         return jsonify({"error": str(e)}), 500
+
+    _, qna_ref = db.collection('qna').add({
+        "request_id": request_id,
+        "question_id": question_id,
+        "question_text": question_text,
+    })
 
     answer = response.get("choices", [])[0].get("message", {}).get("content")
 
@@ -197,7 +213,8 @@ def chat_completions_async_route():
     # Format the answer and other metadata as a JSON string
     payload = json.dumps({
         "request_id": request_id,
-        "question_id": question_id,
+        # "question_id": question_id,
+        "question_id": qna_ref.id,
         "answer_text": answer
     })
 
@@ -232,15 +249,18 @@ def answer_collector_route():
     request_data = db.collection('requests').document(
         request_id).get().to_dict()
 
-    answers = request_data["answers"]
-    answers.append({"id": question_id, "text": answer_text})
-    db.collection('requests').document(request_id).update({"answers": answers})
+    db.collection('qna').document(question_id).update(
+        {"answer_text": answer_text})
 
-    questions = request_data["questions"]
-    questions = [
-        question for question in questions if question["id"] != question_id]
-    db.collection('requests').document(
-        request_id).update({"questions": questions})
+    # answers = request_data["answers"]
+    # answers.append({"id": question_id, "text": answer_text})
+    # db.collection('requests').document(request_id).update({"answers": answers})
+
+    # questions = request_data["questions"]
+    # questions = [
+    #     question for question in questions if question["id"] != question_id]
+    # db.collection('requests').document(
+    #     request_id).update({"questions": questions})
 
     # # 添加 answer_text 到全局变量中
     # global global_answers_store
@@ -257,7 +277,9 @@ def answer_collector_route():
 
     # 如果问题都回答完了，触发发送邮件任务
     # if request_id in global_questions_store and len(global_questions_store[request_id]) == 0:
-    if request_data is not None and len(questions) == 0:
+    questions_count = request_data.get("questions_count", 0)
+    success_count = request_data.get("success_count", 0)
+    if request_data is not None and len(success_count) == len(questions_count):
         payload = json.dumps({
             "request_id": request_id,
         })
