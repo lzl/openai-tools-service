@@ -196,90 +196,28 @@ def chat_completions_async_route():
             {"fail_count": firestore.Increment(1)})
         return jsonify({"error": str(e)}), 500
 
+    answer_text = response.get("choices", [])[0].get(
+        "message", {}).get("content")
+
     _, qna_ref = db.collection('qna').add({
         "request_id": request_id,
         "question_id": question_id,
         "question_text": question_text,
+        "answer_text": answer_text,
     })
 
-    answer = response.get("choices", [])[0].get("message", {}).get("content")
-
-    # Process the question and return a random answer for demonstration purposes
-    # answer_choice = random.choice(['Yes', 'No', 'Maybe'])
-    # if answer_choice == "Maybe":
-    # return jsonify({"error": "Cannot answer with Maybe"}), 400
-    # answer = f"Answer to question {question_id}: {answer_choice}"
-
-    # Format the answer and other metadata as a JSON string
-    payload = json.dumps({
-        "request_id": request_id,
-        # "question_id": question_id,
-        "question_id": qna_ref.id,
-        "answer_text": answer
-    })
-
-    task = {
-        'http_request': {
-            'http_method': 'POST',
-            'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/answer_collector',
-            'headers': {
-                'Content-Type': 'application/json'
-            },
-            'body': payload.encode(),
-        }
-    }
-
-    tasks_client = tasks_v2.CloudTasksClient()
-    parent = tasks_client.queue_path(
-        'withcontextai', 'us-west1', 'answer-collector-queue')
-    tasks_client.create_task(request={'parent': parent, 'task': task})
-
-    return jsonify({"message": f"Answer published for question {question_id}"}), 200
-
-
-@main_routes.route('/answer_collector', methods=['POST'])
-def answer_collector_route():
-    data = request.get_json()
-
-    # 从请求中获取 request_id, question_id 和 answer_text
-    request_id = data.get("request_id")
-    question_id = data.get("question_id")
-    answer_text = data.get("answer_text")
+    print(question_id, answer_text)
 
     request_data = db.collection('requests').document(
         request_id).get().to_dict()
 
-    db.collection('qna').document(question_id).update(
-        {"answer_text": answer_text})
+    # db.collection('qna').document(question_id).update(
+    #     {"answer_text": answer_text})
 
-    # answers = request_data["answers"]
-    # answers.append({"id": question_id, "text": answer_text})
-    # db.collection('requests').document(request_id).update({"answers": answers})
-
-    # questions = request_data["questions"]
-    # questions = [
-    #     question for question in questions if question["id"] != question_id]
-    # db.collection('requests').document(
-    #     request_id).update({"questions": questions})
-
-    # # 添加 answer_text 到全局变量中
-    # global global_answers_store
-    # if request_id not in global_answers_store:
-    #     global_answers_store[request_id] = []
-    # global_answers_store[request_id].append(
-    #     {"id": question_id, "text": answer_text})
-
-    # # 删除 global_questions_store 中的对应 question_id 的数据
-    # global global_questions_store
-    # if request_id in global_questions_store:
-    #     global_questions_store[request_id] = [
-    #         question for question in global_questions_store[request_id] if question["id"] != question_id]
-
-    # 如果问题都回答完了，触发发送邮件任务
-    # if request_id in global_questions_store and len(global_questions_store[request_id]) == 0:
     questions_count = request_data.get("questions_count", 0)
     success_count = request_data.get("success_count", 0)
-    if request_data is not None and len(success_count) == len(questions_count):
+    print(questions_count, success_count)
+    if request_data is not None and success_count == questions_count:
         payload = json.dumps({
             "request_id": request_id,
         })
@@ -300,7 +238,103 @@ def answer_collector_route():
             'withcontextai', 'us-west1', 'send-answers-email-queue')
         tasks_client.create_task(request={'parent': parent, 'task': task})
 
+    # Process the question and return a random answer for demonstration purposes
+    # answer_choice = random.choice(['Yes', 'No', 'Maybe'])
+    # if answer_choice == "Maybe":
+    # return jsonify({"error": "Cannot answer with Maybe"}), 400
+    # answer = f"Answer to question {question_id}: {answer_choice}"
+
+    # Format the answer and other metadata as a JSON string
+    # payload = json.dumps({
+    #     "request_id": request_id,
+    #     # "question_id": question_id,
+    #     "question_id": qna_ref.id,
+    #     "answer_text": answer
+    # })
+
+    # task = {
+    #     'http_request': {
+    #         'http_method': 'POST',
+    #         'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/answer_collector',
+    #         'headers': {
+    #             'Content-Type': 'application/json'
+    #         },
+    #         'body': payload.encode(),
+    #     }
+    # }
+
+    # tasks_client = tasks_v2.CloudTasksClient()
+    # parent = tasks_client.queue_path(
+    #     'withcontextai', 'us-west1', 'answer-collector-queue')
+    # tasks_client.create_task(request={'parent': parent, 'task': task})
+
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
+
+
+# @main_routes.route('/answer_collector', methods=['POST'])
+# def answer_collector_route():
+#     data = request.get_json()
+
+#     # 从请求中获取 request_id, question_id 和 answer_text
+#     request_id = data.get("request_id")
+#     question_id = data.get("question_id")
+#     answer_text = data.get("answer_text")
+
+#     request_data = db.collection('requests').document(
+#         request_id).get().to_dict()
+
+#     db.collection('qna').document(question_id).update(
+#         {"answer_text": answer_text})
+
+#     # answers = request_data["answers"]
+#     # answers.append({"id": question_id, "text": answer_text})
+#     # db.collection('requests').document(request_id).update({"answers": answers})
+
+#     # questions = request_data["questions"]
+#     # questions = [
+#     #     question for question in questions if question["id"] != question_id]
+#     # db.collection('requests').document(
+#     #     request_id).update({"questions": questions})
+
+#     # # 添加 answer_text 到全局变量中
+#     # global global_answers_store
+#     # if request_id not in global_answers_store:
+#     #     global_answers_store[request_id] = []
+#     # global_answers_store[request_id].append(
+#     #     {"id": question_id, "text": answer_text})
+
+#     # # 删除 global_questions_store 中的对应 question_id 的数据
+#     # global global_questions_store
+#     # if request_id in global_questions_store:
+#     #     global_questions_store[request_id] = [
+#     #         question for question in global_questions_store[request_id] if question["id"] != question_id]
+
+#     # 如果问题都回答完了，触发发送邮件任务
+#     # if request_id in global_questions_store and len(global_questions_store[request_id]) == 0:
+#     questions_count = request_data.get("questions_count", 0)
+#     success_count = request_data.get("success_count", 0)
+#     if request_data is not None and success_count == questions_count:
+#         payload = json.dumps({
+#             "request_id": request_id,
+#         })
+
+#         task = {
+#             'http_request': {
+#                 'http_method': 'POST',
+#                 'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/send_answers_email',
+#                 'headers': {
+#                     'Content-Type': 'application/json'
+#                 },
+#                 'body': payload.encode(),
+#             }
+#         }
+
+#         tasks_client = tasks_v2.CloudTasksClient()
+#         parent = tasks_client.queue_path(
+#             'withcontextai', 'us-west1', 'send-answers-email-queue')
+#         tasks_client.create_task(request={'parent': parent, 'task': task})
+
+#     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
 
 @main_routes.route('/send_answers_email', methods=['POST'])
@@ -312,8 +346,16 @@ def send_answers_email_route():
 
     data = db.collection('requests').document(request_id).get().to_dict()
     sheets = data["sheets"]
-    answers = data["answers"]
+    # answers = data["answers"]
     email = data["email"]
+
+    qna_ref = db.collection('qna').where("request_id", "==", request_id)
+    answers = []
+    for doc in qna_ref.stream():  # 遍历requests collection中的每个文档
+        # question_id, answer_text = doc.to_dict()
+        answer = doc.to_dict()
+        answers.append({"id": answer.get("question_id"), "text": answer.get("answer_text")})
+
     # # 从全局变量中获取 sheets, answers 和 email
     # sheets = global_sheets_store.get(request_id)
     # answers = global_answers_store.get(request_id)
