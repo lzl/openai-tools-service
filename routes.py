@@ -139,7 +139,7 @@ def chat_completions_test_route():
     task = {
         'http_request': {
             'http_method': 'POST',
-            'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/answer_collector_test',
+            'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/answer_collector',
             'headers': {
                 'Content-Type': 'application/json'
             },
@@ -155,31 +155,49 @@ def chat_completions_test_route():
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
 
-@main_routes.route('/answer_collector_test', methods=['POST'])
-def answer_collector_test_route():
-    data = request.get_data()
-    if not data:
-        return jsonify({"error": "Invalid request, data not found"}), 400
+@main_routes.route('/answer_collector', methods=['POST'])
+def answer_collector_route():
+    data = request.get_json()
 
-    data = json.loads(data)
+    # 从请求中获取 request_id, question_id 和 answer_text
     request_id = data.get("request_id")
     question_id = data.get("question_id")
     answer_text = data.get("answer_text")
 
+    # 添加 answer_text 到全局变量中
     global global_answers_store
     if request_id not in global_answers_store:
         global_answers_store[request_id] = []
     global_answers_store[request_id].append(
         {"id": question_id, "text": answer_text})
 
-    # delete questions from global_questions_store based by request_id and question_id
+    # 删除 global_questions_store 中的对应 question_id 的数据
     global global_questions_store
     if request_id in global_questions_store:
         global_questions_store[request_id] = [
             question for question in global_questions_store[request_id] if question["id"] != question_id]
 
-    # if not request_id or not question_id or not answer_text:
-    #     return jsonify({"error": "Data missing: request_id, question_id, or answer_text"}), 400
+    # 如果问题都回答完了，触发发送邮件任务
+    if request_id in global_questions_store and len(global_questions_store[request_id]) == 0:
+        payload = json.dumps({
+            "request_id": request_id,
+        })
+
+        task = {
+            'http_request': {
+                'http_method': 'POST',
+                'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/send_answers_email',
+                'headers': {
+                    'Content-Type': 'application/json'
+                },
+                'body': payload.encode(),
+            }
+        }
+
+        tasks_client = tasks_v2.CloudTasksClient()
+        parent = tasks_client.queue_path(
+            'withcontextai', 'us-west1', 'send-answers-email-queue')
+        tasks_client.create_task(request={'parent': parent, 'task': task})
 
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
