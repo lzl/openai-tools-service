@@ -5,6 +5,7 @@ import base64
 import openai
 from google.cloud import tasks_v2
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import *
 from utils import parse_excel, generate_excel
@@ -22,7 +23,7 @@ def result_route():
     if request_id:
         requests_data = db.collection('requests').document(
             request_id).get().to_dict()
-        qna_ref = db.collection('qna').where("request_id", "==", request_id)
+        qna_ref = db.collection('qna').where(filter=FieldFilter("request_id", "==", request_id))
         qna_data = []
         for doc in qna_ref.stream():
             qna_data.append({"id": doc.id, **doc.to_dict()})
@@ -248,7 +249,7 @@ def send_answers_email_route():
     sheets = data["sheets"]
     email = data["email"]
 
-    qna_ref = db.collection('qna').where("request_id", "==", request_id)
+    qna_ref = db.collection('qna').where(filter=FieldFilter("request_id", "==", request_id))
     answers = []
     for doc in qna_ref.stream():
         answer = doc.to_dict()
