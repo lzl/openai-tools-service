@@ -92,7 +92,7 @@ def ask_all_questions_route():
         task = {
             'http_request': {
                 'http_method': 'POST',
-                'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/chat_completions_test',
+                'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/chat_completions_async',
                 'headers': {
                     'Content-Type': 'application/json'
                 },
@@ -105,13 +105,9 @@ def ask_all_questions_route():
     return jsonify({"message": "Tasks created successfully", "request_id": request_id}), 200
 
 
-@main_routes.route('/chat_completions_test', methods=['POST'])
-def chat_completions_test_route():
-    data = request.get_data()
-    if not data:
-        return jsonify({"error": "Invalid request, data not found"}), 400
-
-    data = json.loads(data)
+@main_routes.route('/chat_completions_async', methods=['POST'])
+def chat_completions_async_route():
+    data = request.get_json()
     request_id = data.get("request_id")
     question_id = data.get("question_id")
     question_text = data.get("question_text")
@@ -122,12 +118,55 @@ def chat_completions_test_route():
     # Simulate a 1-minute waiting time
     # time.sleep(60)
     time.sleep(10)
+    # # Get the Authorization header value
+    # auth_header = request.headers.get("Authorization")
+
+    # # Check if the header value exists
+    # if not auth_header:
+    #     return jsonify({"error": "Authorization header is required"}), 401
+
+    # # Extract the token by splitting the header value by whitespace (assuming "Bearer" scheme)
+    # auth_token = auth_header.split(" ")[1]
+
+    # is_auth_token_valid = auth_token == os.environ.get("ACCESS_CODE")
+    # if not is_auth_token_valid:
+    #     return jsonify({"error": "Authorization is not valid"}), 403
+
+    # if not request.is_json:
+    #     return jsonify({"error": "JSON data expected"}), 400
+
+    data = request.get_json()
+
+    model = data.get("model", "gpt-3.5-turbo")
+    # messages = data.get("messages", [])
+    messages = [{"role": "system", "content": "You are ChatGPT, a large language model trained by OpenAI."}, {
+        "role": "user", "content": question_text}]
+    temperature = data.get("temperature", 0.7)
+    presence_penalty = data.get("presence_penalty", 0)
+    frequency_penalty = data.get("frequency_penalty", 0)
+
+    if not (model and messages):
+        return jsonify({"error": "model and messages must be provided"}), 400
+
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            presence_penalty=presence_penalty,
+            frequency_penalty=frequency_penalty,
+        )
+        # return jsonify(response)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+    answer = response.get("choices", [])[0].get("message", {}).get("content")
 
     # Process the question and return a random answer for demonstration purposes
-    answer_choice = random.choice(['Yes', 'No', 'Maybe'])
-    if answer_choice == "Maybe":
-        return jsonify({"error": "Cannot answer with Maybe"}), 400
-    answer = f"Answer to question {question_id}: {answer_choice}"
+    # answer_choice = random.choice(['Yes', 'No', 'Maybe'])
+    # if answer_choice == "Maybe":
+        # return jsonify({"error": "Cannot answer with Maybe"}), 400
+    # answer = f"Answer to question {question_id}: {answer_choice}"
 
     # Format the answer and other metadata as a JSON string
     payload = json.dumps({
