@@ -282,8 +282,8 @@ def send_answers_email_route():
     # 创建邮件
     from_email = From(from_email_text)  # 发件人
     to_email = To(email)  # 收件人
-    subject = "生成的Excel文件"
-    body = Content("text/plain", "您好，附上您要求的 Excel 文件。")
+    subject = "批量任务运行完成"
+    body = Content("text/plain", "请查收附件")
     mail = Mail(from_email, to_email, subject, body)
     mail.add_attachment(attachment)
 
