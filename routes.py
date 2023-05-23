@@ -94,7 +94,8 @@ def ask_all_questions_route():
                 'http_method': 'POST',
                 'url': 'https://openai-tools-mmxbwgwwaq-uw.a.run.app/chat_completions_async',
                 'headers': {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + os.environ.get("ACCESS_CODE"),
                 },
                 'body': payload.encode(),
             }
@@ -115,25 +116,22 @@ def chat_completions_async_route():
     if not request_id or not question_id or not question_text:
         return jsonify({"error": "Data missing: request_id, question_id, or question_text"}), 400
 
-    # Simulate a 1-minute waiting time
-    # time.sleep(60)
-    time.sleep(10)
-    # # Get the Authorization header value
-    # auth_header = request.headers.get("Authorization")
+    # Get the Authorization header value
+    auth_header = request.headers.get("Authorization")
 
-    # # Check if the header value exists
-    # if not auth_header:
-    #     return jsonify({"error": "Authorization header is required"}), 401
+    # Check if the header value exists
+    if not auth_header:
+        return jsonify({"error": "Authorization header is required"}), 401
 
-    # # Extract the token by splitting the header value by whitespace (assuming "Bearer" scheme)
-    # auth_token = auth_header.split(" ")[1]
+    # Extract the token by splitting the header value by whitespace (assuming "Bearer" scheme)
+    auth_token = auth_header.split(" ")[1]
 
-    # is_auth_token_valid = auth_token == os.environ.get("ACCESS_CODE")
-    # if not is_auth_token_valid:
-    #     return jsonify({"error": "Authorization is not valid"}), 403
+    is_auth_token_valid = auth_token == os.environ.get("ACCESS_CODE")
+    if not is_auth_token_valid:
+        return jsonify({"error": "Authorization is not valid"}), 403
 
-    # if not request.is_json:
-    #     return jsonify({"error": "JSON data expected"}), 400
+    if not request.is_json:
+        return jsonify({"error": "JSON data expected"}), 400
 
     data = request.get_json()
 
