@@ -183,67 +183,58 @@ def answer_collector_test_route():
 
     return jsonify({"message": f"Answer published for question {question_id}"}), 200
 
-@main_routes.route('/generate_excel_test', methods=['POST'])
-def generate_excel_test_route():
+
+@main_routes.route('/send_answers_email', methods=['POST'])
+def send_answers_email_route():
     data = request.get_json()
+
+    # 从请求中获取 request_id
     request_id = data.get("request_id")
-    sheets = global_sheets_store[request_id]
-    answers = global_answers_store[request_id]
-    print('generate_excel_test')
-    print('sheets:', sheets)
-    print('answers:', answers)
-    # loop sheet with id and row, use id to get answer from answers, insert answer into the row
-    json_data = sheets
-    for sheet in json_data:
+
+    # 从全局变量中获取 sheets, answers 和 email
+    sheets = global_sheets_store.get(request_id)
+    answers = global_answers_store.get(request_id)
+    email = global_emails_store.get(request_id)
+
+    # 整合 sheets 和 answers 数据
+    for sheet in sheets:
         for answer in answers:
             if sheet["id"] == answer["id"]:
                 sheet["row"]["answer"] = answer["text"]
-    json_data = [{**item["row"]} for item in json_data]
-    print('json_data:', json_data)
+    json_data = [{**item["row"]} for item in sheets]
 
+    # 生成 excel 表格并保存到内存
     output = generate_excel(json_data)
-    # # 将 xlsx 文件作为响应发送给客户端
-    # response = Response(output.read(
-    # ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    # response.headers.set('Content-Disposition',
-    #                      'attachment', filename='output.xlsx')
-    # return response
-
-    # data = request.get_json()
-    # request_id = data.get("request_id")
-    email = global_emails_store[request_id]
-    # excel_data = data.get("excel_data")
-    # output = generate_excel(excel_data)
 
     # 使用 base64 对 xlsx 文件进行编码
     data = output.read()
     encoded_data = base64.b64encode(data).decode()
 
     sg = SendGridAPIClient(api_key=os.environ.get('SENDGRID_API_KEY'))
-    # 邮件信息
-    from_email = Email("chenchongyang@withcontext.ai")  # 发件人
-    to_email = To(email)  # 收件人
-    subject = "Sending Test Email with XLSX Attachment"
-    content = Content("text/plain", "Hi, please find the attached xlsx file.")
 
-    # 创建附件
+    # 创建邮件附件
     attachment = Attachment()
     attachment.file_content = FileContent(encoded_data)
-    attachment.file_type = FileType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    attachment.file_type = FileType(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     attachment.file_name = FileName('output.xlsx')
     attachment.disposition = Disposition('attachment')
 
     # 创建邮件
-    mail = Mail(from_email, to_email, subject, content)
-    mail.attachment = attachment
+    from_email = From("chenchongyang@withcontext.ai")  # 发件人
+    to_email = To(email)  # 收件人
+    subject = "生成的Excel文件"
+    body = Content("text/plain", "您好，附上您要求的 Excel 文件。")
+    mail = Mail(from_email, to_email, subject, body)
+    mail.add_attachment(attachment)
 
-    # 发送邮件
-    # api_key = os.getenv('SENDGRID_API_KEY')  # 获取你的 SendGrid API 密钥
-    # sg = SendGridAPIClient(api_key)
-    response = sg.send(mail)
-    print(response.status_code)
-    print(response.body)
-    print(response.headers)
+    try:
+        # 发送邮件
+        response = sg.send(mail)
+        if response.status_code != 202:  # 如果发送邮件失败，返回报错
+            return {"error": f"Failed to send email, error code: {response.status_code}"}, 400
+    except Exception as e:
+        return {"error": f"Failed to send email: {e}"}, 400
 
     return {"message": "Email sent successfully"}, 200
 
@@ -269,7 +260,8 @@ def send_email_test_route():
     # 创建附件
     attachment = Attachment()
     attachment.file_content = FileContent(encoded_data)
-    attachment.file_type = FileType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    attachment.file_type = FileType(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     attachment.file_name = FileName('output.xlsx')
     attachment.disposition = Disposition('attachment')
 
@@ -281,8 +273,9 @@ def send_email_test_route():
     api_key = os.getenv('SENDGRID_API_KEY')  # 获取你的 SendGrid API 密钥
     sg = SendGridAPIClient(api_key)
     response = sg.send(mail)
-    
+
     return {"message": "Email sent successfully"}, 200
+
 
 @main_routes.route('/chat_completions', methods=['POST'])
 def chat_completions_route():
