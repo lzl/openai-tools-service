@@ -31,10 +31,11 @@ def result_route():
         json_data = data.to_dict()
         return jsonify(json_data)
     else:
-        requests_ref = db.collection('requests')
+        requests_ref = db.collection('requests').order_by(
+            'created_at', direction=firestore.Query.DESCENDING).limit(10)
         requests_data = []
         for doc in requests_ref.stream():  # 遍历requests collection中的每个文档
-            requests_data.append(doc.to_dict())
+            requests_data.append({"id": doc.id, "doc": doc.to_dict()})
         return jsonify(requests_data)
 
     # global global_questions_store
@@ -75,7 +76,7 @@ def ask_all_questions_route():
     email = data.get('email', [])
     sheets = data.get('sheets', [])
     questions = data.get('questions', [])
-    request_id = uuid.uuid4().hex
+    # request_id = uuid.uuid4().hex
 
     request_data = {
         "email": email,
@@ -83,7 +84,9 @@ def ask_all_questions_route():
         "questions": questions,
         "answers": []
     }
-    db.collection('requests').document(request_id).set(request_data)
+    # db.collection('requests').document(request_id).set(request_data)
+    created_at, request_ref = db.collection('requests').add(request_data)
+    request_id = request_ref.id
 
     # global global_emails_store
     # global_emails_store[request_id] = email
@@ -102,6 +105,7 @@ def ask_all_questions_route():
         # question_text = question
 
         payload = json.dumps({
+            "created_at": created_at,
             "request_id": request_id,
             "question_id": question_id,
             "question_text": question_text
