@@ -123,9 +123,9 @@ def ask_all_questions_route():
     # 创建邮件
     from_email = From(from_email_text)  # 发件人
     to_email = To(email)  # 收件人
-    subject = "批量任务创建成功"
+    subject = "批量任务:" + request_id
     body = Content(
-        "text/plain", "任务正在后台运行中，稍后会发送邮件通知您。若长时间未收到邮件，可通过 request_id: " + request_id + " 手动下载结果。")
+        "text/plain", "任务正在运行中，稍后邮件通知您结果。若长时间未收到邮件，可使用 request_id: " + request_id + " 手动发送。")
     mail = Mail(from_email, to_email, subject, body)
 
     try:
@@ -283,8 +283,8 @@ def send_answers_email_route():
     # 创建邮件
     from_email = From(from_email_text)  # 发件人
     to_email = To(email)  # 收件人
-    subject = "批量任务运行完成"
-    body = Content("text/plain", "请查收附件")
+    subject = "批量任务:" + request_id
+    body = Content("text/plain", "运行结果见附件")
     mail = Mail(from_email, to_email, subject, body)
     mail.add_attachment(attachment)
 
