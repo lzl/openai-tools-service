@@ -12,7 +12,7 @@ from utils import parse_excel, generate_excel
 
 db = firestore.Client(project='withcontextai')
 api_url = 'https://openai-tools-mmxbwgwwaq-uw.a.run.app'
-from_email_text = "chenchongyang@withcontext.ai"
+from_email_text = os.environ.get("FROM_EMAIL")
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -77,6 +77,9 @@ def ask_all_questions_route():
     sheets = data.get('sheets', [])
     questions = data.get('questions', [])
 
+    print("email", email)
+    print("config", config)
+
     request_data = {
         "email": email,
         "config": config,
@@ -89,6 +92,7 @@ def ask_all_questions_route():
     _, request_ref = db.collection('requests').add(request_data)
 
     request_id = request_ref.id
+    print("request_id", request_id)
 
     tasks_client = tasks_v2.CloudTasksClient()
     parent = tasks_client.queue_path(
@@ -136,6 +140,7 @@ def ask_all_questions_route():
     except Exception as e:
         return {"error": f"Failed to send email: {e}"}, 400
 
+    print("The confirm email has sent to: ", email)
     return jsonify({"message": "Tasks created successfully", "request_id": request_id}), 200
 
 
@@ -206,7 +211,8 @@ def chat_completions_async_route():
         "answer_text": answer_text,
     })
 
-    print(question_id, answer_text)
+    print("question_id: ", question_id)
+    print("answer_text: ", answer_text)
 
     request_data = db.collection('requests').document(
         request_id).get().to_dict()
@@ -296,6 +302,7 @@ def send_answers_email_route():
     except Exception as e:
         return {"error": f"Failed to send email: {e}"}, 400
 
+    print("The result email has sent to: ", email)
     return {"message": "Email sent successfully"}, 200
 
 
