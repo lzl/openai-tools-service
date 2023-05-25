@@ -84,7 +84,7 @@ def ask_all_questions_route():
     request_data = {
         "email": email,
         "config": config,
-        "sheets": sheets,
+        "sheets": json.dumps(sheets),
         "questions_count": len(questions),
         "success_count": 0,
         "fail_count": 0,
@@ -253,7 +253,8 @@ def send_answers_email_route():
     request_id = data.get("request_id")
 
     data = db.collection('requests').document(request_id).get().to_dict()
-    sheets = data["sheets"]
+    serialized_sheets = data["sheets"]
+    sheets = json.loads(serialized_sheets)
     email = data["email"]
 
     qna_ref = db.collection('qna').where(
