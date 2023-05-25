@@ -371,7 +371,6 @@ def generate_excel_route():
 
     data = db.collection('requests').document(request_id).get().to_dict()
     sheets = data["sheets"]
-    print('sheets:', sheets)
 
     qna_ref = db.collection('qna').where(
         filter=FieldFilter("request_id", "==", request_id))
@@ -387,7 +386,6 @@ def generate_excel_route():
             if sheet["id"] == answer["id"]:
                 sheet["row"].append(["answer", answer["text"]])
     json_data = [item["row"] for item in sheets]
-    print('json_data:', json_data)
 
     # 生成 excel 表格并保存到内存
     output = generate_excel(json_data)
