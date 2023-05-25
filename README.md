@@ -5,7 +5,7 @@ pip install -r requirements.txt
 ```
 
 ```bash
-python app.py
+export GOOGLE_APPLICATION_CREDENTIALS="service-account-file.json" python app.py
 ```
 
 ## Deployment
