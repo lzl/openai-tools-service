@@ -370,7 +370,8 @@ def generate_excel_route():
     request_id = data.get("request_id")
 
     data = db.collection('requests').document(request_id).get().to_dict()
-    sheets = data["sheets"]
+    serialized_sheets = data["sheets"]
+    sheets = json.loads(serialized_sheets)
 
     qna_ref = db.collection('qna').where(
         filter=FieldFilter("request_id", "==", request_id))
