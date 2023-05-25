@@ -23,7 +23,8 @@ def result_route():
     if request_id:
         requests_data = db.collection('requests').document(
             request_id).get().to_dict()
-        qna_ref = db.collection('qna').where(filter=FieldFilter("request_id", "==", request_id))
+        qna_ref = db.collection('qna').where(
+            filter=FieldFilter("request_id", "==", request_id))
         qna_data = []
         for doc in qna_ref.stream():
             qna_data.append({"id": doc.id, **doc.to_dict()})
@@ -255,7 +256,8 @@ def send_answers_email_route():
     sheets = data["sheets"]
     email = data["email"]
 
-    qna_ref = db.collection('qna').where(filter=FieldFilter("request_id", "==", request_id))
+    qna_ref = db.collection('qna').where(
+        filter=FieldFilter("request_id", "==", request_id))
     answers = []
     for doc in qna_ref.stream():
         answer = doc.to_dict()
@@ -266,8 +268,8 @@ def send_answers_email_route():
     for sheet in sheets:
         for answer in answers:
             if sheet["id"] == answer["id"]:
-                sheet["row"]["answer"] = answer["text"]
-    json_data = [{**item["row"]} for item in sheets]
+                sheet["row"].append(["answer", answer["text"]])
+    json_data = [item["row"] for item in sheets]
 
     # 生成 excel 表格并保存到内存
     output = generate_excel(json_data)
@@ -349,9 +351,44 @@ def chat_completions_route():
         return jsonify({"error": str(e)}), 500
 
 
+# @main_routes.route('/generate_excel', methods=['POST'])
+# def generate_excel_route():
+#     json_data = request.get_json()
+#     output = generate_excel(json_data)
+#     # 将 xlsx 文件作为响应发送给客户端
+#     response = Response(output.read(
+#     ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+#     response.headers.set('Content-Disposition',
+#                          'attachment', filename='output.xlsx')
+#     return response
 @main_routes.route('/generate_excel', methods=['POST'])
 def generate_excel_route():
-    json_data = request.get_json()
+    data = request.get_json()
+
+    # 从请求中获取 request_id
+    request_id = data.get("request_id")
+
+    data = db.collection('requests').document(request_id).get().to_dict()
+    sheets = data["sheets"]
+    print('sheets:', sheets)
+
+    qna_ref = db.collection('qna').where(
+        filter=FieldFilter("request_id", "==", request_id))
+    answers = []
+    for doc in qna_ref.stream():
+        answer = doc.to_dict()
+        answers.append({"id": answer.get("question_id"),
+                       "text": answer.get("answer_text")})
+
+    # 整合 sheets 和 answers 数据
+    for sheet in sheets:
+        for answer in answers:
+            if sheet["id"] == answer["id"]:
+                sheet["row"].append(["answer", answer["text"]])
+    json_data = [item["row"] for item in sheets]
+    print('json_data:', json_data)
+
+    # 生成 excel 表格并保存到内存
     output = generate_excel(json_data)
     # 将 xlsx 文件作为响应发送给客户端
     response = Response(output.read(

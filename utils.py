@@ -26,15 +26,15 @@ def generate_excel(json_data):
     worksheet = workbook.add_worksheet()
 
     # 写入表头
-    headers = list(json_data[0].keys())
+    headers = [row[0] for row in json_data[0]]
     for col_num, header in enumerate(headers):
         worksheet.write(0, col_num, header)
 
     # 写入 JSON 数据到 xlsx 文件
     row_num = 1
     for data in json_data:
-        for col_num, value in enumerate(data.values()):
-            worksheet.write(row_num, col_num, value)
+        for col_num, value in enumerate(data):
+            worksheet.write(row_num, col_num, value[1])
         row_num += 1
 
     # 关闭 xlsx 文件
