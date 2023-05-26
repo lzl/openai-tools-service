@@ -26,7 +26,7 @@ def format_data(data):
     return formatted_data
 
 def create_sheets(formatted_data):
-    sheets = [{'id': f'{uuid.uuid4()}.json', 'row': row} for row in formatted_data]
+    sheets = [{'id': f'{uuid.uuid4()}', 'row': row} for row in formatted_data]
     return sheets
 
 def create_questions(sheets, user_message):
@@ -111,7 +111,7 @@ def upload_excel_route():
     bucket_name = 'openai-tools'
     bucket = storage_client.get_bucket(bucket_name)
     random_uuid = uuid.uuid4()
-    blob_name = f'{random_uuid}.json'
+    blob_name = f'{random_uuid}.txt'
     blob = bucket.blob(blob_name)
     blob.upload_from_string(upload_data)
     print(f'File {blob_name} uploaded to {bucket_name}.')
