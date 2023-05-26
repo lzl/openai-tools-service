@@ -8,3 +8,4 @@ xlsxwriter==3.1.0
 google-cloud-tasks==2.13.1
 sendgrid===6.10.0
 google-cloud-firestore==2.11.1
+google-cloud-storage==2.9.0

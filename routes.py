@@ -2,13 +2,17 @@ from flask import Blueprint, request, jsonify, Response
 import os
 import json
 import base64
+import uuid
 import openai
+from google.cloud import storage
 from google.cloud import tasks_v2
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import *
 from utils import parse_excel, generate_excel
+
+storage_client = storage.Client()
 
 db = firestore.Client(project='withcontextai')
 api_url = 'https://openai-tools-mmxbwgwwaq-uw.a.run.app'
@@ -59,6 +63,43 @@ def parse_excel_route():
     return jsonify(json_data)
 
 
+@main_routes.route('/upload_excel', methods=['POST'])
+def upload_excel_route():
+    # 检查是否上传了文件
+    if 'file' not in request.files:
+        return 'No file uploaded'
+
+    file = request.files['file']
+
+    # 检查文件是否符合要求
+    if file.filename == '':
+        return 'No file selected'
+    if not file.filename.endswith('.xlsx'):
+        return 'Invalid file type'
+
+    # 调用解析函数
+    json_data = parse_excel(file)
+
+    # Upload the JSON data to the bucket
+    bucket_name = 'openai-tools'
+    bucket = storage_client.get_bucket(bucket_name)
+    random_uuid = uuid.uuid4()
+    blob_name = f'{random_uuid}.json'
+    blob = bucket.blob(blob_name)
+    blob.upload_from_string(json_data)
+    print(f'File {blob_name} uploaded to {bucket_name}.')
+    # Download the JSON data from Google Cloud Storage
+    # blob = bucket.blob(blob_name)
+    # json_data_2 = blob.download_as_string().decode('utf-8')
+    # print(f'File {blob_name} downloaded from {bucket_name}.')
+    # 返回 JSON 格式数据
+    data = {
+        'blob_name': blob_name,
+        'json_data': json_data,
+    }
+    return jsonify(data)
+
+
 @main_routes.route('/ask_all_questions', methods=['POST'])
 def ask_all_questions_route():
     # Get the Authorization header value
@@ -75,7 +116,8 @@ def ask_all_questions_route():
     data = request.get_json()
     config = data.get("config", {})
     email = data.get('email', [])
-    sheets = data.get('sheets', [])
+    # sheets = data.get('sheets', [])
+    excel_blob_name = data.get('blob_name', '')
     questions = data.get('questions', [])
 
     print("email", email)
@@ -84,7 +126,8 @@ def ask_all_questions_route():
     request_data = {
         "email": email,
         "config": config,
-        "sheets": json.dumps(sheets),
+        # "sheets": json.dumps(sheets),
+        "excel_blob_name": excel_blob_name,
         "questions_count": len(questions),
         "success_count": 0,
         "fail_count": 0,
@@ -252,10 +295,17 @@ def send_answers_email_route():
     # 从请求中获取 request_id
     request_id = data.get("request_id")
 
-    data = db.collection('requests').document(request_id).get().to_dict()
-    serialized_sheets = data["sheets"]
-    sheets = json.loads(serialized_sheets)
-    email = data["email"]
+    request_data = db.collection('requests').document(request_id).get().to_dict()
+    # serialized_sheets = data["sheets"]
+    # sheets = json.loads(serialized_sheets)
+    email = request_data["email"]
+    excel_blob_name = request_data["excel_blob_name"]
+
+    bucket_name = 'openai-tools'
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(excel_blob_name)
+    sheets_string = blob.download_as_string().decode('utf-8')
+    sheets = json.loads(sheets_string)
 
     qna_ref = db.collection('qna').where(
         filter=FieldFilter("request_id", "==", request_id))
