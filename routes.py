@@ -3,6 +3,7 @@ import os
 import json
 import base64
 import uuid
+import re
 import openai
 from google.cloud import storage
 from google.cloud import tasks_v2
@@ -17,6 +18,28 @@ storage_client = storage.Client()
 db = firestore.Client(project='withcontextai')
 api_url = 'https://openai-tools-mmxbwgwwaq-uw.a.run.app'
 from_email_text = os.environ.get("FROM_EMAIL")
+
+def format_data(data):
+    formatted_data = [
+        [[key, str(row[key])] for key in row.keys()] for row in data
+    ]
+    return formatted_data
+
+def create_sheets(formatted_data):
+    sheets = [{'id': f'{uuid.uuid4()}.json', 'row': row} for row in formatted_data]
+    return sheets
+
+def create_questions(sheets, user_message):
+    questions = []
+    for sheet in sheets:
+        text = user_message.strip()
+        for key, value in sheet['row']:
+            text = re.sub(r'{%s}' % re.escape(key), value, text)
+        questions.append({
+            'id': sheet['id'],
+            'text': text,
+        })
+    return questions
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -80,13 +103,17 @@ def upload_excel_route():
     # 调用解析函数
     json_data = parse_excel(file)
 
+    formatted_data = format_data(json_data)
+    sheets = create_sheets(formatted_data)
+    upload_data = json.dumps(sheets)
+
     # Upload the JSON data to the bucket
     bucket_name = 'openai-tools'
     bucket = storage_client.get_bucket(bucket_name)
     random_uuid = uuid.uuid4()
     blob_name = f'{random_uuid}.json'
     blob = bucket.blob(blob_name)
-    blob.upload_from_string(json_data)
+    blob.upload_from_string(upload_data)
     print(f'File {blob_name} uploaded to {bucket_name}.')
     # Download the JSON data from Google Cloud Storage
     # blob = bucket.blob(blob_name)
@@ -118,7 +145,18 @@ def ask_all_questions_route():
     email = data.get('email', [])
     # sheets = data.get('sheets', [])
     excel_blob_name = data.get('blob_name', '')
-    questions = data.get('questions', [])
+    # questions = data.get('questions', [])
+
+    # excel_blob_name = data["blob_name"]
+    bucket_name = 'openai-tools'
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(excel_blob_name)
+    sheets_string = blob.download_as_string().decode('utf-8')
+    sheets = json.loads(sheets_string)
+    # formatted_data = format_data(sheets)
+    # sheets = create_sheets(formatted_data)
+    user_message = config.get('userMessage', [])
+    questions = create_questions(sheets, user_message)
 
     print("email", email)
     print("config", config)

@@ -13,11 +13,13 @@ def parse_excel(file):
     # 将 DataFrame 转成字典格式
     data = df.to_dict(orient='records')
 
-    # 将字典转成 JSON 格式
-    json_data = json.dumps(data)
+    return data
 
-    # 返回 JSON 格式数据
-    return json_data
+    # # 将字典转成 JSON 格式
+    # json_data = json.dumps(data)
+
+    # # 返回 JSON 格式数据
+    # return json_data
 
 def generate_excel(json_data):
     # 创建一个 xlsx 文件并添加一个工作表
