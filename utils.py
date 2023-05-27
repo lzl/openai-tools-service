@@ -1,6 +1,5 @@
 import io
 import pandas as pd
-import json
 import xlsxwriter
 
 def parse_excel(file):
@@ -14,12 +13,6 @@ def parse_excel(file):
     data = df.to_dict(orient='records')
 
     return data
-
-    # # 将字典转成 JSON 格式
-    # json_data = json.dumps(data)
-
-    # # 返回 JSON 格式数据
-    # return json_data
 
 def generate_excel(json_data):
     # 创建一个 xlsx 文件并添加一个工作表

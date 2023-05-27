@@ -19,15 +19,18 @@ db = firestore.Client(project='withcontextai')
 api_url = 'https://openai-tools-mmxbwgwwaq-uw.a.run.app'
 from_email_text = os.environ.get("FROM_EMAIL")
 
+
 def format_data(data):
     formatted_data = [
         [[key, str(row[key])] for key in row.keys()] for row in data
     ]
     return formatted_data
 
+
 def create_sheets(formatted_data):
     sheets = [{'id': f'{uuid.uuid4()}', 'row': row} for row in formatted_data]
     return sheets
+
 
 def create_questions(sheets, user_message):
     questions = []
@@ -40,6 +43,7 @@ def create_questions(sheets, user_message):
             'text': text,
         })
     return questions
+
 
 main_routes = Blueprint('main_routes', __name__)
 
@@ -114,11 +118,7 @@ def upload_excel_route():
     blob_name = f'{random_uuid}.txt'
     blob = bucket.blob(blob_name)
     blob.upload_from_string(upload_data)
-    print(f'File {blob_name} uploaded to {bucket_name}.')
-    # Download the JSON data from Google Cloud Storage
-    # blob = bucket.blob(blob_name)
-    # json_data_2 = blob.download_as_string().decode('utf-8')
-    # print(f'File {blob_name} downloaded from {bucket_name}.')
+
     # 返回 JSON 格式数据
     data = {
         'blob_name': blob_name,
@@ -143,18 +143,13 @@ def ask_all_questions_route():
     data = request.get_json()
     config = data.get("config", {})
     email = data.get('email', [])
-    # sheets = data.get('sheets', [])
     excel_blob_name = data.get('blob_name', '')
-    # questions = data.get('questions', [])
 
-    # excel_blob_name = data["blob_name"]
     bucket_name = 'openai-tools'
     bucket = storage_client.get_bucket(bucket_name)
     blob = bucket.blob(excel_blob_name)
     sheets_string = blob.download_as_string().decode('utf-8')
     sheets = json.loads(sheets_string)
-    # formatted_data = format_data(sheets)
-    # sheets = create_sheets(formatted_data)
     user_message = config.get('userMessage', [])
     questions = create_questions(sheets, user_message)
 
@@ -164,7 +159,6 @@ def ask_all_questions_route():
     request_data = {
         "email": email,
         "config": config,
-        # "sheets": json.dumps(sheets),
         "excel_blob_name": excel_blob_name,
         "questions_count": len(questions),
         "success_count": 0,
@@ -333,9 +327,8 @@ def send_answers_email_route():
     # 从请求中获取 request_id
     request_id = data.get("request_id")
 
-    request_data = db.collection('requests').document(request_id).get().to_dict()
-    # serialized_sheets = data["sheets"]
-    # sheets = json.loads(serialized_sheets)
+    request_data = db.collection('requests').document(
+        request_id).get().to_dict()
     email = request_data["email"]
     excel_blob_name = request_data["excel_blob_name"]
 
@@ -440,16 +433,6 @@ def chat_completions_route():
         return jsonify({"error": str(e)}), 500
 
 
-# @main_routes.route('/generate_excel', methods=['POST'])
-# def generate_excel_route():
-#     json_data = request.get_json()
-#     output = generate_excel(json_data)
-#     # 将 xlsx 文件作为响应发送给客户端
-#     response = Response(output.read(
-#     ), mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-#     response.headers.set('Content-Disposition',
-#                          'attachment', filename='output.xlsx')
-#     return response
 @main_routes.route('/generate_excel', methods=['POST'])
 def generate_excel_route():
     data = request.get_json()
