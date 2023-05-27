@@ -217,7 +217,7 @@ def ask_all_questions_route():
         return {"error": f"Failed to send email: {e}"}, 400
 
     print("The confirm email has sent to: ", email)
-    return jsonify({"message": "Tasks created successfully", "request_id": request_id}), 200
+    return jsonify({"success": True, "message": "Tasks created successfully", "request_id": request_id}), 200
 
 
 @main_routes.route('/chat_completions_async', methods=['POST'])
