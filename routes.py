@@ -440,9 +440,16 @@ def generate_excel_route():
     # 从请求中获取 request_id
     request_id = data.get("request_id")
 
-    data = db.collection('requests').document(request_id).get().to_dict()
-    serialized_sheets = data["sheets"]
-    sheets = json.loads(serialized_sheets)
+    request_data = db.collection('requests').document(
+        request_id).get().to_dict()
+    email = request_data["email"]
+    excel_blob_name = request_data["excel_blob_name"]
+
+    bucket_name = 'openai-tools'
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(excel_blob_name)
+    sheets_string = blob.download_as_string().decode('utf-8')
+    sheets = json.loads(sheets_string)
 
     qna_ref = db.collection('qna').where(
         filter=FieldFilter("request_id", "==", request_id))
