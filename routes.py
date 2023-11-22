@@ -4,7 +4,8 @@ import json
 import base64
 import uuid
 import re
-import openai
+from dotenv import load_dotenv
+from openai import OpenAI
 from google.cloud import storage
 from google.cloud import tasks_v2
 from google.cloud import firestore
@@ -13,10 +14,16 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import *
 from utils import parse_excel, generate_excel
 
+load_dotenv()
+
 storage_client = storage.Client()
+
+openai_api_key = os.environ.get("OPENAI_API_KEY")
+openai_client = OpenAI(api_key=openai_api_key)
 
 db = firestore.Client(project='withcontextai')
 api_url = 'https://openai-tools-mmxbwgwwaq-uw.a.run.app'
+# api_url = 'https://local.lililulu.com'
 from_email_text = os.environ.get("FROM_EMAIL")
 
 
@@ -263,7 +270,7 @@ def chat_completions_async_route():
         return jsonify({"error": "model and messages must be provided"}), 400
 
     try:
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
@@ -277,8 +284,7 @@ def chat_completions_async_route():
             {"fail_count": firestore.Increment(1)})
         return jsonify({"error": str(e)}), 500
 
-    answer_text = response.get("choices", [])[0].get(
-        "message", {}).get("content")
+    answer_text = response.choices[0].message.content
 
     db.collection('qna').add({
         "request_id": request_id,
@@ -421,7 +427,7 @@ def chat_completions_route():
         return jsonify({"error": "model and messages must be provided"}), 400
 
     try:
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
